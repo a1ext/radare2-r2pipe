@@ -100,7 +100,7 @@ class OpenBase(object):
                         if os.name == "nt":
                                 mypipename = os.environ['r2pipe_path']
                                 while 1:
-                                        hPipe = windll.kernel32.CreateFileA(szPipename + mypipename, GENERIC_READ | GENERIC_WRITE, 0, None, OPEN_EXISTING, 0, None)
+                                        hPipe = windll.kernel32.CreateFileA((szPipename + mypipename).encode('ascii'), GENERIC_READ | GENERIC_WRITE, 0, None, OPEN_EXISTING, 0, None)
                                         if (hPipe != INVALID_HANDLE_VALUE):
                                                 break
                                         else:
@@ -111,7 +111,7 @@ class OpenBase(object):
                                         elif ((windll.kernel32.WaitNamedPipeA(szPipename, 20000)) == 0):
                                                 print("Could not open pipe\n")
                                                 return
-                                windll.kernel32.WriteFile(hPipe, "e scr.color=false\n", 18, byref(cbWritten), None)
+                                windll.kernel32.WriteFile(hPipe, b"e scr.color=false\n", 18, byref(cbWritten), None)
                                 windll.kernel32.ReadFile(hPipe, chBuf, BUFSIZE, byref(cbRead), None)
                                 self.pipe = [hPipe, hPipe]
                                 self._cmd = self._cmd_pipe
@@ -125,10 +125,20 @@ class OpenBase(object):
                 if filename.startswith("#!pipe"):
                         raise Exception("ERROR: Cannot use #!pipe without R2PIPE_{IN|OUT} env")
 
+        @classmethod
+        def convert_str(cls, s):
+                if sys.version_info >= (3, 0):
+                        if isinstance(s, bytes):
+                            return s
+                        return s.encode('utf8')
+                else:
+                        if isinstance(s, unicode):
+                                return s.encode('utf8')
+                        return s
 
         def _cmd_pipe(self, cmd):
                 out = b''
-                cmd = cmd.strip().replace("\n", ";")
+                cmd = self.convert_str(cmd.strip().replace("\n", ";"))
                 if os.name == "nt":
                         windll.kernel32.WriteFile(self.pipe[1], cmd, len(cmd), byref(cbWritten), None)
                         while True:
@@ -138,35 +148,37 @@ class OpenBase(object):
                                         out = out[0:-1]
                                         break
                 else:
-                        os.write(self.pipe[1], cmd.encode())
+                        os.write(self.pipe[1], cmd)
                         while True:
                                 res = os.read(self.pipe[0], 4096)
-                                if (len(res) < 1):
+                                if len(res) < 1:
                                         break
-                                if res[-1] == b'\x00'[0]:
+                                if res.endswith(b'\0'):
                                         out += res[0:-1]
                                 else:
                                         out += res
-                                if (len(res) < 4096):
+                                if len(res) < 4096:
                                         break
                 return out.decode('utf-8')
 
         def _cmd_native(self, cmd):
-                cmd = cmd.strip().replace("\n", ";")
+                cmd = self.convert_str(cmd.strip().replace("\n", ";"))
                 if not has_native:
                         raise Exception('No native ctypes connector available')
                 if not hasattr(self, 'native'):
                         self.native = RCore()
-                        self.native.cmd_str("o " + self.uri)
+                        if not hasattr(self, 'uri'):
+                            raise ValueError('`uri` is not set')
+                        self.native.cmd_str(b"o " + self.convert_str(self.uri))
                 return self.native.cmd_str(cmd)
 
         def _cmd_rlang(self, cmd):
-                return r2lang.cmd(cmd)
+                return r2lang.cmd(self.convert_str(cmd))
      
         def quit(self):
                 """Quit current r2pipe session and kill
                 """
-                self.cmd("q")
+                self.cmd(b"q")
                 if hasattr(self, 'process'):
                         import subprocess
                         is_async = not isinstance(self.process, subprocess.Popen)
@@ -222,6 +234,7 @@ class OpenBase(object):
                 Returns:
                     Returns a string with the output
                 """
+                from subprocess import Popen, PIPE
                 p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE)
                 out, err = p.communicate()
                 return out

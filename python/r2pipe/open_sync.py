@@ -99,7 +99,7 @@ class open(OpenBase):
 
         def _cmd_process(self, cmd): 
                 cmd = cmd.strip().replace("\n", ";")
-                self.process.stdin.write((cmd + '\n').encode('utf8'))
+                self.process.stdin.write(self.convert_str(cmd) + b'\n')
                 r = self.process.stdout
                 self.process.stdin.flush()
                 out = b''
@@ -138,7 +138,7 @@ class open(OpenBase):
 
         def _cmd_tcp(self, cmd):
                 res = b''
-                self.conn.sendall(str.encode(cmd, 'utf-8'))
+                self.conn.sendall(self.convert_str(cmd))
                 data = self.conn.recv(512)
                 while data:
                         res += data
