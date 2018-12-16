@@ -93,6 +93,7 @@ class OpenBase(object):
                     Returns an object with methods to interact with r2 via commands
                 """
                 self.asyn = False
+                self._colors_restore = False
                 if not filename and in_rlang():
                         self._cmd = self._cmd_rlang
                         return
@@ -111,13 +112,17 @@ class OpenBase(object):
                                         elif ((windll.kernel32.WaitNamedPipeA(szPipename, 20000)) == 0):
                                                 print("Could not open pipe\n")
                                                 return
-                                windll.kernel32.WriteFile(hPipe, b"e scr.color=false\n", 18, byref(cbWritten), None)
-                                windll.kernel32.ReadFile(hPipe, chBuf, BUFSIZE, byref(cbRead), None)
+
                                 self.pipe = [hPipe, hPipe]
                                 self._cmd = self._cmd_pipe
                         else:
                                 self.pipe = [int(os.environ['R2PIPE_IN']), int(os.environ['R2PIPE_OUT'])]
                                 self._cmd = self._cmd_pipe
+
+                        v = self.cmd('e scr.color\n').strip()
+                        self._colors_restore = v in ('true', '1')
+                        self.cmd('e scr.color=false\n')
+
                         self.url = "#!pipe"
                         return
                 except:
@@ -178,6 +183,9 @@ class OpenBase(object):
         def quit(self):
                 """Quit current r2pipe session and kill
                 """
+                if self._colors_restore:
+                    self.cmd(b'e scr.color=true\n')
+
                 self.cmd(b"q")
                 if hasattr(self, 'process'):
                         import subprocess
