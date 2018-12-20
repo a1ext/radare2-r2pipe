@@ -141,6 +141,17 @@ class OpenBase(object):
                                 return s.encode('utf8')
                         return s
 
+        @classmethod
+        def decode_result(cls, raw):
+            try:
+                return raw.decode('utf8')
+            except UnicodeDecodeError as e:
+                sys.stderr.write('Unable to decode `cmd` result: %s\n' % e)
+                sys.stderr.flush()
+                return raw
+            except:
+                return raw
+
         def _cmd_pipe(self, cmd):
                 out = b''
                 cmd = self.convert_str(cmd.strip().replace("\n", ";"))
@@ -164,7 +175,7 @@ class OpenBase(object):
                                         out += res
                                 if len(res) < 4096:
                                         break
-                return out.decode('utf-8')
+                return self.decode_result(out)
 
         def _cmd_native(self, cmd):
                 cmd = self.convert_str(cmd.strip().replace("\n", ";"))
